@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Image Extractor</title>
+    <!-- Import JSZip for zipping files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Import FileSaver for saving the zip -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <style>
+      :root {
+        --primary: #18a0fb;
+        --primary-hover: #0d8ce0;
+        --bg: #ffffff;
+        --bg-secondary: #f5f5f5;
+        --text: #333333;
+        --text-secondary: #888888;
+        --border: #e6e6e6;
+        --radius: 12px;
+        --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      }
+
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, sans-serif;
+        padding: 0;
+        margin: 0;
+        background-color: var(--bg);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* --- Header --- */
+      .header {
+        padding: 32px 20px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--border);
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+      }
+
+      .logo-area {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .logo-icon {
+        width: 48px;
+        height: 48px;
+        color: var(--primary);
+        background: rgba(24, 160, 251, 0.1);
+        padding: 10px;
+        border-radius: 16px;
+      }
+
+      h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin: 0;
+        color: var(--text);
+        letter-spacing: -0.02em;
+      }
+
+      .subtitle {
+        font-size: 15px;
+        color: var(--text-secondary);
+        margin: 0;
+        text-align: center;
+        line-height: 1.5;
+        max-width: 400px;
+      }
+
+      /* Search Container */
+      .search-container {
+        display: flex;
+        gap: 12px;
+        width: 100%;
+        max-width: 600px;
+        margin-top: 8px;
+      }
+
+      input[type="text"] {
+        flex: 1;
+        padding: 14px 16px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 15px;
+        background: var(--bg-secondary);
+        transition: all 0.2s ease;
+        outline: none;
+        color: var(--text);
+      }
+
+      input[type="text"]:focus {
+        background: white;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(24, 160, 251, 0.1);
+      }
+
+      .search-btn {
+        background: #102a43;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0 24px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        white-space: nowrap;
+        box-shadow: 0 4px 12px rgba(16, 42, 67, 0.15);
+      }
+      .search-btn:hover {
+        background: #243b53;
+        transform: translateY(-1px);
+      }
+      .search-btn:active {
+        transform: translateY(0);
+      }
+      .search-btn:disabled {
+        background: #ccc;
+        cursor: default;
+        transform: none;
+        box-shadow: none;
+      }
+
+      /* --- Controls Bar --- */
+      .controls {
+        display: none;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 32px 8px 32px;
+        font-size: 14px;
+        color: var(--text-secondary);
+        max-width: 1200px;
+        width: 100%;
+        margin: 0 auto;
+        box-sizing: border-box;
+      }
+
+      .toggle-link {
+        color: var(--primary);
+        cursor: pointer;
+        font-weight: 600;
+        text-decoration: none;
+        background: none;
+        border: none;
+        padding: 0;
+      }
+      .toggle-link:hover {
+        text-decoration: underline;
+      }
+
+      /* --- Masonry Grid --- */
+      #grid-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px 32px;
+        column-count: 5;
+        column-gap: 20px;
+        max-width: 1400px;
+        width: 100%;
+        margin: 0 auto;
+        box-sizing: border-box;
+      }
+
+      /* Responsive Columns */
+      @media (max-width: 1200px) {
+        #grid-container {
+          column-count: 4;
+        }
+      }
+      @media (max-width: 900px) {
+        #grid-container {
+          column-count: 3;
+        }
+      }
+      @media (max-width: 600px) {
+        #grid-container {
+          column-count: 2;
+          padding: 16px;
+        }
+        .search-container {
+          flex-direction: column;
+        }
+        .search-btn {
+          padding: 14px;
+          width: 100%;
+        }
+      }
+
+      .img-item {
+        position: relative;
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: var(--bg-secondary);
+        cursor: pointer;
+        transition: transform 0.2s;
+        break-inside: avoid;
+        margin-bottom: 20px;
+        width: 100%;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      }
+
+      .img-item:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      }
+      .img-item:active {
+        transform: scale(0.98);
+      }
+
+      .img-item::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border: 3px solid transparent;
+        border-radius: var(--radius);
+        transition: border-color 0.1s;
+        pointer-events: none;
+        z-index: 2;
+      }
+
+      .img-item.selected::after {
+        border-color: var(--primary);
+        box-shadow: inset 0 0 0 2px rgba(24, 160, 251, 0.1);
+      }
+
+      .img-item img {
+        width: 100%;
+        height: auto;
+        display: block;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      .img-item img.loaded {
+        opacity: 1;
+      }
+
+      .check-circle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 24px;
+        height: 24px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        backdrop-filter: blur(4px);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        z-index: 3;
+        opacity: 0;
+        transform: scale(0.8);
+      }
+
+      .img-item:hover .check-circle,
+      .img-item.selected .check-circle {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      .img-item.selected .check-circle {
+        background: var(--primary);
+        border-color: var(--primary);
+      }
+
+      .check-icon {
+        width: 14px;
+        height: 14px;
+        color: white;
+        display: none;
+      }
+      .img-item.selected .check-icon {
+        display: block;
+      }
+
+      /* --- Footer --- */
+      .footer {
+        padding: 20px;
+        background: white;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 24px;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.02);
+      }
+
+      .status-text {
+        font-size: 14px;
+        color: var(--text-secondary);
+        font-weight: 500;
+      }
+
+      .import-btn {
+        background-color: var(--primary);
+        color: white;
+        border: none;
+        padding: 14px 32px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        transition: background 0.2s;
+        box-shadow: 0 4px 12px rgba(24, 160, 251, 0.3);
+        min-width: 220px;
+      }
+      .import-btn:hover {
+        background-color: var(--primary-hover);
+        transform: translateY(-1px);
+      }
+      .import-btn:disabled {
+        background-color: var(--bg-secondary);
+        color: #bbb;
+        box-shadow: none;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      /* --- Modal Overlay --- */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 100;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        animation: fadeIn 0.2s ease-out;
+      }
+
+      .modal-box {
+        background: white;
+        padding: 40px;
+        border-radius: 20px;
+        width: 320px;
+        text-align: center;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid var(--primary);
+        border-radius: 50%;
+        margin: 0 auto 20px auto;
+        animation: spin 1s linear infinite;
+      }
+
+      .modal-title {
+        font-weight: 700;
+        font-size: 18px;
+        margin-bottom: 8px;
+        color: var(--text);
+      }
+      .modal-status {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-bottom: 24px;
+      }
+
+      .progress-track {
+        background: #f0f0f0;
+        height: 8px;
+        border-radius: 4px;
+        overflow: hidden;
+        width: 100%;
+      }
+      .progress-fill {
+        background: var(--primary);
+        height: 100%;
+        width: 0%;
+        transition: width 0.3s ease;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes slideUp {
+        from {
+          transform: translateY(20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      .empty-state {
+        column-span: all;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 16px;
+        margin-top: 80px;
+        line-height: 1.6;
+      }
+      .loading-skeleton {
+        background: linear-gradient(
+          90deg,
+          #f0f0f0 25%,
+          #f7f7f7 50%,
+          #f0f0f0 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+      }
+      @keyframes shimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="progressModal" class="modal-overlay">
+      <div class="modal-box">
+        <div class="spinner"></div>
+        <div class="modal-title" id="modalTitle">Downloading...</div>
+        <div class="modal-status" id="modalStatus">0/0 ready</div>
+        <div class="progress-track">
+          <div id="progressBar" class="progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="header">
+      <div class="logo-area">
+        <svg
+          class="logo-icon"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+          ></path>
+        </svg>
+        <h1>Image Extractor</h1>
+        <p class="subtitle">
+          Enter a website URL below to extract high-quality images and download
+          them directly to your device.
+        </p>
+      </div>
+
+      <div class="search-container">
+        <input
+          type="text"
+          id="urlInput"
+          placeholder="Enter website link (e.g. unsplash.com)"
+          value="https://unsplash.com"
+        />
+        <button id="find" class="search-btn">
+          <svg
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            ></path>
+          </svg>
+          Find Images
+        </button>
+      </div>
+    </div>
+
+    <div class="controls" id="controls">
+      <span id="resultCount">0 images found</span>
+      <button id="selectAll" class="toggle-link">Select All</button>
+    </div>
+
+    <div id="grid-container">
+      <!-- Grid Content -->
+    </div>
+
+    <div class="footer">
+      <div class="status-text" id="status">Ready to extract</div>
+      <button id="import" class="import-btn" disabled>Download ZIP</button>
+    </div>
+
+    <script>
+      const CORS_PROXY = "https://corsproxy.io/?";
+
+      let foundUrls = [];
+      let selectedIndices = new Set();
+
+      const dom = {
+        urlInput: document.getElementById("urlInput"),
+        findBtn: document.getElementById("find"),
+        grid: document.getElementById("grid-container"),
+        importBtn: document.getElementById("import"),
+        status: document.getElementById("status"),
+        controls: document.getElementById("controls"),
+        selectAllBtn: document.getElementById("selectAll"),
+        resultCount: document.getElementById("resultCount"),
+        modal: document.getElementById("progressModal"),
+        modalTitle: document.getElementById("modalTitle"),
+        modalStatus: document.getElementById("modalStatus"),
+        progressBar: document.getElementById("progressBar"),
+      };
+
+      // --- 1. FIND IMAGES ---
+      dom.findBtn.onclick = async () => {
+        let url = dom.urlInput.value.trim();
+        if (!url) return;
+        if (!url.match(/^https?:\/\//i)) {
+          url = "https://" + url;
+          dom.urlInput.value = url;
+        }
+
+        dom.findBtn.disabled = true;
+        dom.findBtn.innerHTML =
+          '<span class="spinner" style="width:16px;height:16px;margin:0;border-width:2px;border-top-color:white;display:inline-block;"></span> Scanning...';
+        dom.status.textContent = "Scanning website...";
+
+        dom.grid.innerHTML = "";
+        // Generate randomized skeletons for masonry effect
+        for (let i = 0; i < 16; i++) {
+          const skel = document.createElement("div");
+          skel.className = "img-item loading-skeleton";
+          const h = Math.floor(Math.random() * 200) + 150;
+          skel.style.height = `${h}px`;
+          dom.grid.appendChild(skel);
+        }
+
+        dom.controls.style.display = "none";
+        foundUrls = [];
+        selectedIndices.clear();
+        updateFooter();
+
+        try {
+          const encodedUrl = encodeURIComponent(url);
+          const fetchUrl = CORS_PROXY + url;
+          const res = await fetch(fetchUrl);
+
+          if (!res.ok) throw new Error(`Status ${res.status}`);
+          const text = await res.text();
+
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(text, "text/html");
+          const imgs = Array.from(doc.querySelectorAll("img"));
+          const origin = new URL(url).origin;
+
+          foundUrls = imgs
+            .map((img) => {
+              let src = img.getAttribute("src");
+              if (!src || src.startsWith("data:")) return null;
+              if (src.startsWith("//")) return "https:" + src;
+              if (src.startsWith("/")) return origin + src;
+              if (!src.startsWith("http")) return origin + "/" + src;
+              return src;
+            })
+            .filter((src) => src !== null);
+
+          // Clean up URLs
+          foundUrls = [...new Set(foundUrls)].filter(
+            (u) => !u.match(/\.(svg|gif|ico)$/i)
+          );
+
+          if (foundUrls.length === 0) {
+            dom.grid.innerHTML =
+              '<div class="empty-state">No usable images found. <br>Try scrolling the page or using a different URL.</div>';
+          } else {
+            renderGrid();
+            dom.controls.style.display = "flex";
+            dom.resultCount.textContent = `${foundUrls.length} found`;
+            dom.selectAllBtn.textContent = "Select All";
+          }
+          dom.status.textContent = `Found ${foundUrls.length} images`;
+        } catch (err) {
+          console.error(err);
+          dom.status.textContent = "Connection failed";
+          dom.grid.innerHTML = `<div class="empty-state">Failed to load website.<br><span style="font-size:14px;opacity:0.7">${err.message}</span></div>`;
+        } finally {
+          dom.findBtn.disabled = false;
+          dom.findBtn.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg> Find Images`;
+        }
+      };
+
+      // --- 2. RENDER GRID ---
+      function renderGrid() {
+        dom.grid.innerHTML = "";
+
+        foundUrls.forEach((url, index) => {
+          const item = document.createElement("div");
+          item.className = "img-item";
+          item.onclick = () => toggleSelection(index, item);
+
+          const img = document.createElement("img");
+          img.onload = () => img.classList.add("loaded");
+          img.src = url;
+          img.onerror = () => {
+            item.style.display = "none";
+          };
+
+          const checkCircle = document.createElement("div");
+          checkCircle.className = "check-circle";
+          checkCircle.innerHTML = `<svg class="check-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="M5 13l4 4L19 7"></path></svg>`;
+
+          item.appendChild(img);
+          item.appendChild(checkCircle);
+          dom.grid.appendChild(item);
+        });
+      }
+
+      // --- 3. SELECTION ---
+      function toggleSelection(index, element) {
+        if (selectedIndices.has(index)) {
+          selectedIndices.delete(index);
+          element.classList.remove("selected");
+        } else {
+          selectedIndices.add(index);
+          element.classList.add("selected");
+        }
+        updateFooter();
+        updateSelectAllText();
+      }
+
+      dom.selectAllBtn.onclick = () => {
+        const allItems = document.querySelectorAll(".img-item");
+        const visibleIndices = [];
+        allItems.forEach((el, idx) => {
+          if (el.style.display !== "none") visibleIndices.push(idx);
+        });
+
+        const allSelected = visibleIndices.every((i) => selectedIndices.has(i));
+
+        if (allSelected) {
+          selectedIndices.clear();
+          allItems.forEach((el) => el.classList.remove("selected"));
+          dom.selectAllBtn.textContent = "Select All";
+        } else {
+          visibleIndices.forEach((i) => selectedIndices.add(i));
+          allItems.forEach((el, idx) => {
+            if (visibleIndices.includes(idx)) el.classList.add("selected");
+          });
+          dom.selectAllBtn.textContent = "Deselect All";
+        }
+        updateFooter();
+      };
+
+      function updateSelectAllText() {
+        dom.selectAllBtn.textContent =
+          selectedIndices.size > 0 ? "Deselect All" : "Select All";
+      }
+
+      function updateFooter() {
+        const count = selectedIndices.size;
+        if (count === 1) {
+          dom.importBtn.textContent = "Download Image";
+        } else if (count > 1) {
+          dom.importBtn.textContent = `Download ZIP (${count})`;
+        } else {
+          dom.importBtn.textContent = "Download";
+        }
+
+        dom.importBtn.disabled = count === 0;
+      }
+
+      // --- 4. DOWNLOAD LOGIC ---
+      dom.importBtn.onclick = async () => {
+        const indices = Array.from(selectedIndices);
+        const total = indices.length;
+
+        dom.modal.style.display = "flex";
+        dom.progressBar.style.width = "0%";
+
+        // --- CASE A: SINGLE IMAGE ---
+        if (total === 1) {
+          dom.modalTitle.textContent = "Downloading Image...";
+          dom.modalStatus.textContent = "Fetching file...";
+          dom.progressBar.style.width = "50%";
+
+          try {
+            const url = foundUrls[indices[0]];
+            const res = await fetch(CORS_PROXY + url);
+            if (!res.ok) throw new Error();
+            const blob = await res.blob();
+
+            let ext = "jpg";
+            const mime = blob.type;
+            if (mime === "image/png") ext = "png";
+            else if (mime === "image/webp") ext = "webp";
+            else if (mime === "image/jpeg") ext = "jpg";
+            else if (url.match(/\.gif$/i)) ext = "gif";
+
+            saveAs(blob, `image_download.${ext}`);
+
+            dom.progressBar.style.width = "100%";
+            dom.modalStatus.textContent = "Done!";
+          } catch (e) {
+            console.error(e);
+            alert("Failed to download image. Security restrictions may apply.");
+          }
+
+          setTimeout(() => {
+            dom.modal.style.display = "none";
+            dom.status.textContent = `Downloaded 1 image`;
+          }, 800);
+          return;
+        }
+
+        // --- CASE B: MULTIPLE IMAGES (ZIP) ---
+        dom.modalTitle.textContent = "Creating ZIP...";
+
+        const zip = new JSZip();
+        const imgFolder = zip.folder("images");
+        let completed = 0;
+
+        for (let i = 0; i < total; i++) {
+          const currentNum = i + 1;
+          dom.modalStatus.textContent = `Processing image ${currentNum} of ${total}`;
+          const percent = (currentNum / total) * 100;
+          dom.progressBar.style.width = `${percent}%`;
+
+          const url = foundUrls[indices[i]];
+
+          try {
+            const res = await fetch(CORS_PROXY + url);
+            if (!res.ok) throw new Error();
+            const blob = await res.blob();
+
+            let ext = "jpg";
+            const mime = blob.type;
+            if (mime === "image/png") ext = "png";
+            else if (mime === "image/webp") ext = "webp";
+            else if (mime === "image/jpeg") ext = "jpg";
+
+            const filename = `image_${i + 1}.${ext}`;
+            imgFolder.file(filename, blob);
+
+            completed++;
+          } catch (e) {
+            console.warn("Skipped image:", url);
+          }
+        }
+
+        dom.modalTitle.textContent = "Finalizing...";
+
+        zip.generateAsync({ type: "blob" }).then(function (content) {
+          saveAs(content, "extracted_images.zip");
+
+          dom.modal.style.display = "none";
+          dom.status.textContent = `Downloaded ${completed} images`;
+        });
+      };
+    </script>
+  </body>
+</html>
